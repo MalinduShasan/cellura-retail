@@ -1,0 +1,39 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/cache
+
+# Next.js build output
+/.next/
+/out/
+
+# Production artifacts
+/build
+/dist
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment secrets (CRITICAL: Prevents leaking database & Stripe keys)
+.env*.local
+.env.development
+.env.production
+.env
+
+# Allow committing the template example file so team/recruiters know what keys to add
+!.env.example
+
+# Vercel deployment artifacts
+.vercel
+
+# Operating system files
+.DS_Store
+Thumbs.db
+*.pem
+
+# TypeScript compilation caches
+*.tsbuildinfo
