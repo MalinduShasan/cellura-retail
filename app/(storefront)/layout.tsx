@@ -1,18 +1,16 @@
-import '@/app/globals.css';
+import { Navbar } from '@/components/storefront/navbar';
+import { BottomNav } from '@/components/storefront/bottom-nav';
 
-export const metadata = {
-  title: 'Cellura Retail | Premium Smartphone Commerce',
-  description: 'Ultra-fast retail storefront and inventory platform',
-};
-
-export default function RootLayout({
+export default function StorefrontLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
+    <div className="min-h-screen flex flex-col pb-20 md:pb-0">
+      <Navbar />
+      <div className="flex-1">{children}</div>
+      <BottomNav />
+    </div>
   );
 }
