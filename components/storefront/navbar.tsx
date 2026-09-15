@@ -3,14 +3,15 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Search, ShoppingBag, Smartphone, X } from 'lucide-react';
+import { useCart } from '@/context/cart-context';
 
 export function Navbar() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const { totalCount, setIsOpen } = useCart();
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        {/* Brand Identity */}
         <Link href="/" className="flex items-center gap-2 group shrink-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white transition group-hover:bg-teal-600">
             <Smartphone className="h-5 w-5" />
@@ -25,7 +26,6 @@ export function Navbar() {
           </div>
         </Link>
 
-        {/* Desktop Search */}
         <div className="hidden md:flex flex-1 max-w-md mx-8">
           <div className="relative w-full">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -38,9 +38,7 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Mobile Search Toggle */}
           <button
             type="button"
             onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
@@ -50,23 +48,25 @@ export function Navbar() {
             {mobileSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </button>
 
-          {/* Cart Trigger */}
-          <Link
-            href="/cart"
-            aria-label="Shopping cart with 0 items"
+          {/* Cart Drawer Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            aria-label={`Shopping cart with ${totalCount} items`}
             className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
           >
             <ShoppingBag className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-teal-600 text-[10px] font-semibold text-white">
-              0
-            </span>
-          </Link>
+            {totalCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-teal-600 text-[10px] font-semibold text-white">
+                {totalCount}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Expandable Mobile Search Field */}
       {mobileSearchOpen && (
-        <div className="border-t border-slate-200 bg-white p-3 md:hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="border-t border-slate-200 bg-white p-3 md:hidden">
           <div className="relative w-full">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
@@ -80,7 +80,6 @@ export function Navbar() {
         </div>
       )}
 
-      {/* Swipeable Brand Tags Strip */}
       <div className="border-t border-slate-100 bg-slate-50/90 px-4 py-2 text-xs">
         <div className="mx-auto flex max-w-7xl items-center gap-3 overflow-x-auto no-scrollbar py-0.5">
           <span className="shrink-0 font-bold text-slate-400 uppercase tracking-wider text-[10px]">
