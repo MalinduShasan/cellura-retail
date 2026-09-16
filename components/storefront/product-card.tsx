@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { MockProduct } from '@/lib/mock-data';
+import { useCart } from '@/context/cart-context';
 
 interface ProductCardProps {
   product: MockProduct;
@@ -9,6 +11,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
+  const { addItem } = useCart();
   const activeVariant = product.variants[selectedVariantIndex];
 
   const conditionColors: Record<string, string> = {
@@ -43,9 +46,9 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="text-[11px] font-bold uppercase tracking-wider text-teal-600">
           {product.brand}
         </div>
-        <h3 className="mt-1 text-base sm:text-lg font-bold text-slate-900 group-hover:text-teal-600 transition">
+        <Link href={`/phones/${product.slug}`} className="mt-1 text-base sm:text-lg font-bold text-slate-900 group-hover:text-teal-600 transition">
           {product.name}
-        </h3>
+        </Link>
         <p className="mt-1 text-xs text-slate-500 line-clamp-2 leading-relaxed">
           {product.description}
         </p>
@@ -84,6 +87,17 @@ export function ProductCard({ product }: ProductCardProps) {
           </div>
           <button
             type="button"
+            onClick={() => addItem({
+              variantId: activeVariant.id,
+              productId: product.id,
+              name: product.name,
+              brand: product.brand,
+              storage: activeVariant.storage,
+              color: activeVariant.color,
+              condition: activeVariant.condition,
+              price: activeVariant.price,
+              image: activeVariant.image,
+            })}
             className="w-full sm:w-auto h-11 sm:h-9 flex items-center justify-center rounded-xl bg-teal-600 px-5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 active:scale-98"
           >
             Add to Cart
