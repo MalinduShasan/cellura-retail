@@ -2,17 +2,19 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { MockProduct } from '@/lib/mock-data';
 import { useCart } from '@/context/cart-context';
+import type { ProductWithVariants } from '@/types/store.types';
 
 interface ProductCardProps {
-  product: MockProduct;
+  product: ProductWithVariants;
 }
 
 export function ProductCard({ product }: ProductCardProps) {
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
   const { addItem } = useCart();
   const activeVariant = product.variants[selectedVariantIndex];
+  const activeImage = activeVariant.images[0] || '/placeholder-phone.svg';
+  const isOutOfStock = activeVariant.stock_quantity <= 0;
 
   const conditionColors: Record<string, string> = {
     new: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -26,7 +28,7 @@ export function ProductCard({ product }: ProductCardProps) {
       <div className="relative aspect-4/3 sm:aspect-16/10 w-full bg-slate-100 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={activeVariant.image}
+          src={activeImage}
           alt={`${product.name} in ${activeVariant.color}`}
           className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
         />
@@ -34,10 +36,15 @@ export function ProductCard({ product }: ProductCardProps) {
           <span
             className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide capitalize shadow-2xs ${
               conditionColors[activeVariant.condition]
-            }`}
+              }`}
           >
             {activeVariant.condition}
           </span>
+          {isOutOfStock && (
+            <span className="mt-2 block rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 shadow-2xs">
+              Out of stock
+            </span>
+          )}
         </div>
       </div>
 
@@ -79,9 +86,9 @@ export function ProductCard({ product }: ProductCardProps) {
             <span className="text-xl sm:text-2xl font-extrabold text-slate-900">
               ${activeVariant.price.toFixed(2)}
             </span>
-            {activeVariant.compareAtPrice && (
+            {activeVariant.compare_at_price && (
               <span className="ml-2 text-xs font-medium text-slate-400 line-through">
-                ${activeVariant.compareAtPrice.toFixed(2)}
+                ${activeVariant.compare_at_price.toFixed(2)}
               </span>
             )}
           </div>
@@ -96,11 +103,12 @@ export function ProductCard({ product }: ProductCardProps) {
               color: activeVariant.color,
               condition: activeVariant.condition,
               price: activeVariant.price,
-              image: activeVariant.image,
+              image: activeImage,
             })}
-            className="w-full sm:w-auto h-11 sm:h-9 flex items-center justify-center rounded-xl bg-teal-600 px-5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 active:scale-98"
+            disabled={isOutOfStock}
+            className="w-full sm:w-auto h-11 sm:h-9 flex items-center justify-center rounded-xl bg-teal-600 px-5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 active:scale-98 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            Add to Cart
+            {isOutOfStock ? 'Out of stock' : 'Add to Cart'}
           </button>
         </div>
       </div>

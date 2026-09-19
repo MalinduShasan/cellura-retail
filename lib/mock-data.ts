@@ -1,27 +1,6 @@
-export interface MockVariant {
-  id: string;
-  sku: string;
-  storage: string;
-  ram?: string;
-  color: string;
-  condition: 'new' | 'refurbished' | 'pre-owned';
-  price: number;
-  compareAtPrice?: number;
-  stockQuantity: number;
-  image: string;
-}
+import type { ProductWithVariants, TrackedOrder } from '@/types/store.types';
 
-export interface MockProduct {
-  id: string;
-  name: string;
-  brand: string;
-  slug: string;
-  description: string;
-  featured: boolean;
-  variants: MockVariant[];
-}
-
-export const MOCK_PRODUCTS: MockProduct[] = [
+export const MOCK_PRODUCTS: ProductWithVariants[] = [
   {
     id: 'prod-1',
     name: 'iPhone 16 Pro Max',
@@ -29,6 +8,13 @@ export const MOCK_PRODUCTS: MockProduct[] = [
     slug: 'iphone-16-pro-max',
     description: 'Grade 5 titanium design with the A18 Pro chip and 48MP Fusion camera system.',
     featured: true,
+    created_at: '2026-01-01T00:00:00.000Z',
+    specs: {
+      display: '6.9-inch Super Retina XDR OLED (120Hz ProMotion)',
+      processor: 'Apple A18 Pro (3nm) with 6-core GPU',
+      camera: '48MP Fusion + 48MP Ultra Wide + 12MP 5x Telephoto',
+      battery: 'Up to 33h Video Playback (100% Guaranteed Capacity)',
+    },
     variants: [
       {
         id: 'var-101',
@@ -38,9 +24,9 @@ export const MOCK_PRODUCTS: MockProduct[] = [
         color: 'Natural Titanium',
         condition: 'new',
         price: 1199.0,
-        compareAtPrice: 1299.0,
-        stockQuantity: 14,
-        image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80',
+        compare_at_price: 1299.0,
+        stock_quantity: 14,
+        images: ['https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80'],
       },
       {
         id: 'var-102',
@@ -50,9 +36,21 @@ export const MOCK_PRODUCTS: MockProduct[] = [
         color: 'Black Titanium',
         condition: 'refurbished',
         price: 1049.0,
-        compareAtPrice: 1399.0,
-        stockQuantity: 5,
-        image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80',
+        compare_at_price: 1399.0,
+        stock_quantity: 5,
+        images: ['https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80'],
+      },
+      {
+        id: 'var-103',
+        sku: 'IP16PM-1TB-WHT-PO',
+        storage: '1TB',
+        ram: '8GB',
+        color: 'White Titanium',
+        condition: 'pre-owned',
+        price: 949.0,
+        compare_at_price: 1599.0,
+        stock_quantity: 2,
+        images: ['https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80'],
       },
     ],
   },
@@ -63,6 +61,13 @@ export const MOCK_PRODUCTS: MockProduct[] = [
     slug: 'galaxy-s25-ultra',
     description: 'Galaxy AI integration, Snapdragon 8 Elite, and built-in S-Pen productivity.',
     featured: true,
+    created_at: '2026-01-02T00:00:00.000Z',
+    specs: {
+      display: '6.8-inch Dynamic AMOLED 2X (1-120Hz Adaptive)',
+      processor: 'Snapdragon 8 Elite for Galaxy',
+      camera: '200MP Main + 50MP Periscope + 50MP Ultra Wide',
+      battery: '5000 mAh (45W Super Fast Charging)',
+    },
     variants: [
       {
         id: 'var-201',
@@ -72,9 +77,9 @@ export const MOCK_PRODUCTS: MockProduct[] = [
         color: 'Titanium Gray',
         condition: 'new',
         price: 1299.99,
-        compareAtPrice: 1419.99,
-        stockQuantity: 8,
-        image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=800&q=80',
+        compare_at_price: 1419.99,
+        stock_quantity: 8,
+        images: ['https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=800&q=80'],
       },
       {
         id: 'var-202',
@@ -84,9 +89,9 @@ export const MOCK_PRODUCTS: MockProduct[] = [
         color: 'Phantom Black',
         condition: 'pre-owned',
         price: 899.0,
-        compareAtPrice: 1199.0,
-        stockQuantity: 3,
-        image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=800&q=80',
+        compare_at_price: 1199.0,
+        stock_quantity: 3,
+        images: ['https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=800&q=80'],
       },
     ],
   },
@@ -97,6 +102,13 @@ export const MOCK_PRODUCTS: MockProduct[] = [
     slug: 'pixel-9-pro',
     description: 'Tensor G4 processor with advanced Gemini Nano multi-modal photography features.',
     featured: false,
+    created_at: '2026-01-03T00:00:00.000Z',
+    specs: {
+      display: '6.3-inch Super Actua LTPO OLED (1-120Hz)',
+      processor: 'Google Tensor G4 with Titan M2 security',
+      camera: '50MP Wide + 48MP Ultra Wide + 48MP 5x Telephoto',
+      battery: '4700 mAh with 24+ hour battery life guarantee',
+    },
     variants: [
       {
         id: 'var-301',
@@ -106,9 +118,9 @@ export const MOCK_PRODUCTS: MockProduct[] = [
         color: 'Porcelain',
         condition: 'new',
         price: 999.0,
-        compareAtPrice: 1099.0,
-        stockQuantity: 12,
-        image: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=800&q=80',
+        compare_at_price: 1099.0,
+        stock_quantity: 12,
+        images: ['https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=800&q=80'],
       },
       {
         id: 'var-302',
@@ -118,10 +130,61 @@ export const MOCK_PRODUCTS: MockProduct[] = [
         color: 'Obsidian',
         condition: 'refurbished',
         price: 799.0,
-        compareAtPrice: 999.0,
-        stockQuantity: 6,
-        image: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=800&q=80',
+        compare_at_price: 999.0,
+        stock_quantity: 6,
+        images: ['https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=800&q=80'],
       },
     ],
   },
 ];
+
+export const MOCK_ORDERS: Record<string, TrackedOrder> = {
+  'ord-1001': {
+    id: 'ord-1001',
+    email: 'customer@cellura.com',
+    status: 'shipped',
+    payment_status: 'paid',
+    created_at: '2026-09-18T10:30:00.000Z',
+    tracking_number: 'FX-88940219-US',
+    carrier: 'FedEx Express 2-Day',
+    subtotal: 1199.00,
+    total_amount: 1199.00,
+    items: [
+      {
+        name: 'iPhone 16 Pro Max',
+        variant: '256GB · Natural Titanium · Brand New',
+        quantity: 1,
+        price: 1199.00,
+        image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80',
+      },
+    ],
+    shipping_address: {
+      line1: '742 Evergreen Terrace',
+      city: 'Springfield, OR',
+      country: 'United States',
+    },
+  },
+  'ord-1002': {
+    id: 'ord-1002',
+    email: 'alex@example.com',
+    status: 'processing',
+    payment_status: 'paid',
+    created_at: '2026-09-19T14:15:00.000Z',
+    subtotal: 899.00,
+    total_amount: 899.00,
+    items: [
+      {
+        name: 'Galaxy S25 Ultra',
+        variant: '256GB · Phantom Black · Pre-Owned',
+        quantity: 1,
+        price: 899.00,
+        image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=800&q=80',
+      },
+    ],
+    shipping_address: {
+      line1: '100 Market St',
+      city: 'San Francisco, CA',
+      country: 'United States',
+    },
+  },
+};

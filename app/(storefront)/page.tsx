@@ -2,8 +2,67 @@ import Link from 'next/link';
 import { ArrowRight, ShieldCheck, Truck, Wrench } from 'lucide-react';
 import { ProductCard } from '@/components/storefront/product-card';
 import { MOCK_PRODUCTS } from '@/lib/mock-data';
+import { createClient } from '@/lib/supabase/server';
+import type { ProductWithVariants } from '@/types/store.types';
 
-export default function StorefrontHomePage() {
+interface LiveProductRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  featured: boolean;
+  created_at: string;
+  brand: { name: string } | { name: string }[] | null;
+  variants: ProductWithVariants['variants'];
+}
+
+async function getCatalogProducts(): Promise<ProductWithVariants[]> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, brand:brands(name), variants:product_variants(*)')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('[storefront] Catalog query failed; using mock products.', error.message);
+      return MOCK_PRODUCTS;
+    }
+
+    const products = ((data || []) as unknown as LiveProductRow[])
+      .map((product) => ({
+        id: product.id,
+        name: product.name,
+        brand: Array.isArray(product.brand) ? product.brand[0]?.name || 'Cellura' : product.brand?.name || 'Cellura',
+        slug: product.slug,
+        description: product.description,
+        featured: product.featured,
+        created_at: product.created_at,
+        variants: product.variants || [],
+      }))
+      .filter((product) => product.variants.length > 0);
+
+    if (products.length === 0) {
+      console.warn('[storefront] Catalog is empty; using mock products.');
+      return MOCK_PRODUCTS;
+    }
+
+    return products;
+  } catch (error) {
+    console.warn(
+      '[storefront] Catalog is unavailable; using mock products.',
+      error instanceof Error ? error.message : error,
+    );
+    return MOCK_PRODUCTS;
+  }
+}
+
+export default async function StorefrontHomePage() {
+  const products = await getCatalogProducts();
+  const featuredProduct = products[0];
+  const featuredImage = featuredProduct?.variants[0]?.images[0] || '/placeholder-phone.svg';
+
   return (
     <main>
       <section className="border-b border-slate-200 bg-[#102a2b] text-white">
@@ -16,7 +75,7 @@ export default function StorefrontHomePage() {
           </div>
           <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/10 shadow-2xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={MOCK_PRODUCTS[0].variants[0].image} alt="iPhone 16 Pro Max" className="aspect-[4/3] w-full object-cover" />
+            <img src={featuredImage} alt={featuredProduct?.name || 'Featured phone'} className="aspect-[4/3] w-full object-cover" />
             <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-[#102a2b]/90 p-4 backdrop-blur-sm"><p className="text-xs font-semibold uppercase tracking-widest text-teal-300">Featured now</p><p className="mt-1 text-lg font-bold">iPhone 16 Pro Max</p></div>
           </div>
         </div>
@@ -30,7 +89,7 @@ export default function StorefrontHomePage() {
           })}
         </div>
         <div id="catalog" className="flex items-end justify-between gap-4 py-10"><div><p className="text-xs font-bold uppercase tracking-[0.2em] text-teal-600">The collection</p><h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">Find your fit</h2></div><Link href="/phones" className="hidden items-center gap-1 text-sm font-bold text-teal-700 sm:flex">View all <ArrowRight className="h-4 w-4" /></Link></div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{MOCK_PRODUCTS.map((product) => <ProductCard key={product.id} product={product} />)}</div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
       </section>
     </main>
   );
