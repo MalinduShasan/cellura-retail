@@ -18,11 +18,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Environment secrets (CRITICAL: Prevents leaking database & Stripe keys)
+# Local environment secrets
 .env*.local
-.env.development
-.env.production
 .env
+.env.production
+.env.staging
 
 # Allow committing the template example file so team/recruiters know what keys to add
 !.env.example
@@ -34,6 +34,7 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 *.pem
+*.key
 
 # TypeScript compilation caches
 *.tsbuildinfo

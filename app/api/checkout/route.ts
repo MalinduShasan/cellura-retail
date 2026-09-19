@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const stripe = body.payment_method === 'stripe' ? getStripe() : null;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   try {
     let stripeSessionId: string | null = null;
