@@ -118,8 +118,7 @@ export default function CheckoutPage() {
 
       // For Bank Transfer or Store Pickup, clear cart and redirect to success
       clearCart();
-      router.push(`/checkout/success?orderId=${data.orderId || 'manual'}`);
-    } catch (err) {
+		router.push(`/checkout/success?orderId=${data.orderId || 'manual'}&paymentMethod=${paymentMethod}`);    } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);

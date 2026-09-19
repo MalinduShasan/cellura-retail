@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 export interface CartItem {
   variantId: string;
@@ -24,7 +24,7 @@ interface CartContextType {
   totalCount: number;
   subtotal: number;
   isOpen: boolean;
-  setIsOpen: (isOpen: boolean) => void;
+  setIsOpen: (open: boolean) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -32,60 +32,61 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Hydrate cart from localStorage on mount
+  // Hydrate from localStorage on mount
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('cellura_cart');
-      if (stored) {
-        setItems(JSON.parse(stored));
+      const saved = localStorage.getItem('cellura_cart');
+      if (saved) {
+        setItems(JSON.parse(saved));
       }
     } catch {
-      // Local storage unavailable or unparseable
+      // Ignore parsing errors
     }
-    setIsHydrated(true);
+    setMounted(true);
   }, []);
 
-  // Sync cart updates to localStorage
+  // Sync to localStorage
   useEffect(() => {
-    if (isHydrated) {
+    if (mounted) {
       localStorage.setItem('cellura_cart', JSON.stringify(items));
     }
-  }, [items, isHydrated]);
+  }, [items, mounted]);
 
-  const addItem = (newItem: Omit<CartItem, 'quantity'>) => {
+  const addItem = useCallback((item: Omit<CartItem, 'quantity'>) => {
     setItems((prev) => {
-      const existing = prev.find((item) => item.variantId === newItem.variantId);
+      const existing = prev.find((i) => i.variantId === item.variantId);
       if (existing) {
-        return prev.map((item) =>
-          item.variantId === newItem.variantId
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+        return prev.map((i) =>
+          i.variantId === item.variantId ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [...prev, { ...newItem, quantity: 1 }];
+      return [...prev, { ...item, quantity: 1 }];
     });
-    setIsOpen(true);
-  };
+    setIsOpen(true); // Automatically slide open the drawer when an item is added
+  }, []);
 
-  const removeItem = (variantId: string) => {
-    setItems((prev) => prev.filter((item) => item.variantId !== variantId));
-  };
+  const removeItem = useCallback((variantId: string) => {
+    setItems((prev) => prev.filter((i) => i.variantId !== variantId));
+  }, []);
 
-  const updateQuantity = (variantId: string, quantity: number) => {
+  const updateQuantity = useCallback((variantId: string, quantity: number) => {
     if (quantity <= 0) {
-      removeItem(variantId);
-      return;
+      setItems((prev) => prev.filter((i) => i.variantId !== variantId));
+    } else {
+      setItems((prev) =>
+        prev.map((i) => (i.variantId === variantId ? { ...i, quantity } : i))
+      );
     }
-    setItems((prev) =>
-      prev.map((item) =>
-        item.variantId === variantId ? { ...item, quantity } : item
-      )
-    );
-  };
+  }, []);
 
-  const clearCart = () => setItems([]);
+  const clearCart = useCallback(() => {
+    setItems([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('cellura_cart');
+    }
+  }, []);
 
   const totalCount = items.reduce((acc, item) => acc + item.quantity, 0);
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);

@@ -1,10 +1,11 @@
 import Stripe from 'stripe';
 
-export function getStripe() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  if (!secretKey) {
-    throw new Error('STRIPE_SECRET_KEY is not configured');
-  }
+const apiKey = process.env.STRIPE_SECRET_KEY || '';
 
-  return new Stripe(secretKey);
-}
+export const stripe = new Stripe(apiKey, {
+  apiVersion: '2025-02-24.acacia' as any,
+  appInfo: {
+    name: 'Cellura Retail',
+    version: '1.0.0',
+  },
+});

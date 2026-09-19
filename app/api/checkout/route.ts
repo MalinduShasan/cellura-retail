@@ -1,41 +1,36 @@
 import { NextResponse } from 'next/server';
-import { getStripe } from '@/lib/stripe';
-import { createClient } from '@/lib/supabase/server';
-import type { FulfillmentType, Json, PaymentMethod } from '@/types/database.types';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { stripe } from '@/lib/stripe';
+import type Stripe from 'stripe';
 
-type CheckoutItem = {
-  variant_id: string;
+interface CheckoutItemRequest {
+  variantId: string;
   quantity: number;
-  product_name?: string;
-};
+}
 
-type CheckoutRequest = {
-  items: CheckoutItem[];
-  email?: string;
-  payment_method: PaymentMethod;
-  fulfillment_type: FulfillmentType;
-  shipping_address: Json;
-};
+interface CheckoutRequest {
+  items: CheckoutItemRequest[];
+  customerEmail: string;
+  shippingDetails: {
+    fullName: string;
+    phone: string;
+    address: string;
+    apartment?: string;
+    city: string;
+    postalCode: string;
+    country: string;
+  };
+  paymentMethod: 'stripe' | 'bank_transfer' | 'store_pickup';
+}
 
-type VariantRow = {
+interface DbVariantRow {
   id: string;
-  sku: string;
-  price: number;
-  stock_quantity: number;
-};
-
-type CreatedOrder = {
-  id: string;
-  tracking_token: string | null;
-};
-
-function isValidRequest(body: CheckoutRequest) {
-  return body.items.length > 0 && body.items.every(
-    (item) => typeof item.variant_id === 'string'
-      && Number.isInteger(item.quantity)
-      && item.quantity > 0
-      && item.quantity <= 20
-  );
+  price: number | string;
+  stock_quantity: number | null;
+  storage: string;
+  color: string;
+  condition: string;
+  products: { id?: string; name: string } | { id?: string; name: string }[] | null;
 }
 
 export async function POST(request: Request) {
@@ -43,82 +38,186 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as CheckoutRequest;
   } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
   }
 
-  if (!body || !isValidRequest(body) || !['stripe', 'manual', 'store_pickup'].includes(body.payment_method)
-    || !['home_delivery', 'store_pickup'].includes(body.fulfillment_type)) {
-    return NextResponse.json({ error: 'Invalid checkout details' }, { status: 400 });
+  const { items, customerEmail, shippingDetails, paymentMethod } = body;
+
+  if (!items || items.length === 0) {
+    return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
   }
 
-  if (!body.email || !body.email.includes('@')) {
-    return NextResponse.json({ error: 'A valid email is required' }, { status: 400 });
+  if (!customerEmail) {
+    return NextResponse.json({ error: 'Customer email is required' }, { status: 400 });
   }
-
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const stripe = body.payment_method === 'stripe' ? getStripe() : null;
-  const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
   try {
-    let stripeSessionId: string | null = null;
-    if (stripe) {
-      const { data: rawVariants, error } = await supabase
-        .from('product_variants')
-        .select('id, sku, price, stock_quantity')
-        .in('id', body.items.map((item) => item.variant_id));
-      const variants = (rawVariants || []) as VariantRow[];
+    const variantIds = items.map((i) => i.variantId);
 
-      if (error || !variants || variants.length !== body.items.length) {
-        return NextResponse.json({ error: 'One or more products are unavailable' }, { status: 409 });
+    // 1. Zero-Trust Price & Inventory Verification
+    const { data, error: variantError } = await supabaseAdmin
+      .from('product_variants')
+      .select(`
+        id,
+        price,
+        stock_quantity,
+        storage,
+        color,
+        condition,
+        products (
+          id,
+          name
+        )
+      `)
+      .in('id', variantIds);
+
+    if (variantError || !data || data.length === 0) {
+      console.error('Catalog query error:', variantError);
+      return NextResponse.json(
+        { error: 'Could not verify catalog pricing. Please try again.' },
+        { status: 400 }
+      );
+    }
+
+    const dbVariants = data as unknown as DbVariantRow[];
+
+    let verifiedSubtotal = 0;
+    const validatedItems = items.map((clientItem) => {
+      const match = dbVariants.find((v) => v.id === clientItem.variantId);
+      if (!match) {
+        throw new Error(`Variant ${clientItem.variantId} not found`);
+      }
+      if ((match.stock_quantity ?? 0) < clientItem.quantity) {
+        throw new Error('Insufficient inventory for selected device.');
       }
 
-      const lineItems = body.items.map((item) => {
-        const variant = variants.find((candidate) => candidate.id === item.variant_id);
-        if (!variant || variant.stock_quantity < item.quantity) {
-          throw new Error('Insufficient stock');
-        }
-        return {
-          quantity: item.quantity,
-          price_data: {
-            currency: 'usd',
-            unit_amount: Math.round(Number(variant.price) * 100),
-            product_data: { name: item.product_name || variant.sku },
-          },
-        };
-      });
+      const unitPrice = Number(match.price);
+      const totalPrice = unitPrice * clientItem.quantity;
+      verifiedSubtotal += totalPrice;
 
-      const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        customer_email: body.email,
-        line_items: lineItems,
-        success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${siteUrl}/checkout`,
-      });
-      stripeSessionId = session.id;
-    }
+      const rawProductName = Array.isArray(match.products)
+        ? match.products[0]?.name
+        : match.products?.name || 'Smartphone';
 
-    const createOrder = supabase.rpc as unknown as (
-      functionName: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: CreatedOrder | null; error: { message: string } | null }>;
-    const { data: order, error } = await createOrder('create_manual_order', {
-      p_user_id: user?.id ?? null,
-      p_guest_email: user ? null : body.email,
-      p_payment_method: body.payment_method,
-      p_fulfillment_type: body.fulfillment_type,
-      p_shipping_address: body.shipping_address,
-      p_items: body.items as unknown as Json,
-      p_stripe_session_id: stripeSessionId,
+      return {
+        variantId: match.id,
+        productName: rawProductName,
+        variantDetails: {
+          storage: match.storage,
+          color: match.color,
+          condition: match.condition || 'new',
+        },
+        displayName: `${rawProductName} (${match.storage} - ${match.color})`,
+        unitPrice,
+        quantity: clientItem.quantity,
+        totalPrice,
+      };
     });
 
-    if (error || !order) {
-      return NextResponse.json({ error: error?.message || 'Unable to create order' }, { status: 409 });
+    // 2. Insert Order into Supabase
+    const { data: orderData, error: orderError } = await (supabaseAdmin
+      .from('orders') as any)
+      .insert({
+        status: 'pending',
+        payment_status: 'unpaid',
+        payment_method: paymentMethod,
+        guest_email: customerEmail,
+        shipping_address: shippingDetails,
+        subtotal: verifiedSubtotal,
+        total_amount: verifiedSubtotal,
+      })
+      .select('id')
+      .single();
+
+    if (orderError || !orderData) {
+      console.error('Order insertion failed:', orderError);
+      return NextResponse.json(
+        { error: `Database error: ${orderError?.message || 'Failed to create order'}` },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ orderId: order.id, trackingToken: order.tracking_token, sessionId: stripeSessionId });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to create checkout';
-    return NextResponse.json({ error: message }, { status: 409 });
+    const orderId = orderData.id;
+
+    // 3. Insert Order Items (Exact match with Supabase schema)
+    const itemsPayload = validatedItems.map((item) => ({
+      order_id: orderId,
+      variant_id: item.variantId,
+      product_name: item.productName,
+      variant_details: item.variantDetails,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      total_price: item.totalPrice,
+    }));
+
+    const { error: itemsError } = await (supabaseAdmin
+      .from('order_items') as any)
+      .insert(itemsPayload);
+
+    if (itemsError) {
+      console.error('Order items insertion error:', itemsError);
+      return NextResponse.json(
+        { error: `Failed to insert order items: ${itemsError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // 4. Handle Payment Branching
+    if (paymentMethod === 'stripe') {
+      const stripeKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeKey || stripeKey.includes('placeholder')) {
+        return NextResponse.json(
+          {
+            error:
+              'Stripe Secret Key is not configured. Please choose Bank Transfer or Store Pickup, or configure test keys.',
+          },
+          { status: 400 }
+        );
+      }
+
+      const siteUrl =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        'http://localhost:3000';
+
+      const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = validatedItems.map(
+        (item) => ({
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: item.displayName,
+            },
+            unit_amount: Math.round(item.unitPrice * 100),
+          },
+          quantity: item.quantity,
+        })
+      );
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        customer_email: customerEmail,
+        line_items: lineItems,
+        mode: 'payment',
+        success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}&orderId=${orderId}&paymentMethod=stripe`,
+        cancel_url: `${siteUrl}/checkout`,
+        metadata: {
+          orderId,
+          customerEmail,
+        },
+      });
+
+      return NextResponse.json({ url: session.url, orderId });
+    }
+
+    // Direct Bank Transfer or In-Store Pickup
+    return NextResponse.json({
+      success: true,
+      orderId,
+      paymentMethod,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Order processing failed';
+    console.error('Checkout error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
