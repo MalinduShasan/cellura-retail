@@ -1,10 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, ShoppingBag, Smartphone, X } from 'lucide-react';
+import { 
+  Search, 
+  ShoppingBag, 
+  Smartphone, 
+  X, 
+  User, 
+  Shield, 
+  LogOut, 
+  Layers, 
+  Package, 
+  ChevronDown 
+} from 'lucide-react';
 import { useCart } from '@/context/cart-context';
+import { createClient } from '@/lib/supabase/client';
 
 export function Navbar() {
   const router = useRouter();
@@ -12,6 +24,60 @@ export function Navbar() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const { totalCount, setIsOpen } = useCart();
+
+  // Auth & Profile State
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUser(data.user);
+          setUserRole(data.role);
+        }
+      } catch {
+        // Ignore fetch errors
+      }
+    }
+
+    fetchUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      fetchUser();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setProfileDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setUserRole(null);
+    setProfileDropdownOpen(false);
+    router.refresh();
+  };
 
   const activeBrand = searchParams.get('brand')?.toLowerCase();
   const activeCondition = searchParams.get('condition')?.toLowerCase();
@@ -25,6 +91,8 @@ export function Navbar() {
       router.push('/phones');
     }
   };
+
+  const isStaffOrAdmin = userRole && ['staff', 'manager', 'admin'].includes(userRole);
 
   const navTags = [
     { label: 'All Devices', href: '/phones', isActive: !activeBrand && !activeCondition && !searchParams.get('q') },
@@ -67,7 +135,20 @@ export function Navbar() {
           </form>
         </div>
 
+        {/* Action Controls (Admin Badge, Profile Dropdown & Cart Trigger) */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Quick Admin Portal Button for staff members */}
+          {isStaffOrAdmin && (
+            <Link
+              href="/admin"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-teal-600 transition shadow-xs"
+            >
+              <Shield className="h-3.5 w-3.5 text-teal-300" />
+              <span>Admin Portal</span>
+            </Link>
+          )}
+
+          {/* Mobile Search Toggle */}
           <button
             type="button"
             onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
@@ -76,6 +157,96 @@ export function Navbar() {
           >
             {mobileSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </button>
+
+          {/* User Profile / Account Menu */}
+          <div className="relative" ref={dropdownRef}>
+            {currentUser ? (
+              <button
+                type="button"
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                aria-label="User Account Menu"
+                className="flex items-center gap-1.5 h-10 px-2.5 rounded-full border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition"
+              >
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-600 text-white text-[11px] font-bold uppercase">
+                  {currentUser.email ? currentUser.email[0] : 'U'}
+                </div>
+                <ChevronDown className="h-3 w-3 text-slate-400" />
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                title="Sign In / Staff Portal"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition"
+              >
+                <User className="h-4.5 w-4.5" />
+              </Link>
+            )}
+
+            {/* Profile Dropdown Menu */}
+            {profileDropdownOpen && currentUser && (
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-3 py-2 border-b border-slate-100 mb-1">
+                  <div className="text-[11px] text-slate-400 font-medium">Signed in as</div>
+                  <div className="text-xs font-bold text-slate-900 truncate">
+                    {currentUser.email}
+                  </div>
+                  {userRole && (
+                    <span className="inline-block mt-1 rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-700 border border-teal-200">
+                      {userRole}
+                    </span>
+                  )}
+                </div>
+
+                {isStaffOrAdmin && (
+                  <>
+                    <Link
+                      href="/admin"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
+                    >
+                      <Shield className="h-4 w-4 text-teal-600" />
+                      Admin Dashboard
+                    </Link>
+                    <Link
+                      href="/admin/orders"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
+                    >
+                      <Package className="h-4 w-4 text-slate-400" />
+                      Orders & Dispatches
+                    </Link>
+                    <Link
+                      href="/admin/inventory"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
+                    >
+                      <Layers className="h-4 w-4 text-slate-400" />
+                      Stock & Inventory
+                    </Link>
+                    <div className="border-t border-slate-100 my-1" />
+                  </>
+                )}
+
+                <Link
+                  href="/track-order"
+                  onClick={() => setProfileDropdownOpen(false)}
+                  className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
+                >
+                  <Package className="h-4 w-4 text-slate-400" />
+                  Track Orders
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition text-left"
+                >
+                  <LogOut className="h-4 w-4 text-rose-500" />
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Cart Drawer Trigger */}
           <button
