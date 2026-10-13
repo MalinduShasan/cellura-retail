@@ -120,10 +120,18 @@ function LoginForm() {
             </button>
           </form>
 
-          <div className="mt-6 border-t border-slate-100 pt-4 text-center">
-            <Link href="/" className="text-xs text-slate-500 hover:text-slate-800 transition">
-              ← Return to Storefront
-            </Link>
+          <div className="mt-6 border-t border-slate-100 pt-4 text-center space-y-2">
+            <div className="text-xs text-slate-500">
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="font-bold text-teal-600 hover:text-teal-700">
+                Create account
+              </Link>
+            </div>
+            <div>
+              <Link href="/" className="text-xs text-slate-400 hover:text-slate-700 transition">
+                ← Return to Storefront
+              </Link>
+            </div>
           </div>
         </div>
       </div>

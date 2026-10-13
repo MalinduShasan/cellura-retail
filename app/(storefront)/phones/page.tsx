@@ -10,6 +10,7 @@ interface PhonesPageProps {
     brand?: string;
     condition?: string;
     sort?: string;
+    q?: string;
   }>;
 }
 
@@ -19,7 +20,7 @@ export const metadata = {
 };
 
 export default async function PhonesPage({ searchParams }: PhonesPageProps) {
-  const { brand, condition, sort } = await searchParams;
+  const { brand, condition, sort, q } = await searchParams;
 
   let products: ProductWithVariants[] = [];
   let brands: string[] = ['Apple', 'Samsung', 'Google'];
@@ -80,6 +81,23 @@ export default async function PhonesPage({ searchParams }: PhonesPageProps) {
   // Fallback to MOCK_PRODUCTS if database is empty/unseeded
   if (products.length === 0) {
     products = MOCK_PRODUCTS;
+  }
+
+  // Filter by Search Query
+  if (q && q.trim().length > 0) {
+    const query = q.trim().toLowerCase();
+    products = products.filter((p) => {
+      const matchesName = p.name.toLowerCase().includes(query);
+      const matchesBrand = p.brand.toLowerCase().includes(query);
+      const matchesDesc = (p.description || '').toLowerCase().includes(query);
+      const matchesVariant = p.variants.some(
+        (v) =>
+          v.sku.toLowerCase().includes(query) ||
+          v.color.toLowerCase().includes(query) ||
+          v.storage.toLowerCase().includes(query)
+      );
+      return matchesName || matchesBrand || matchesDesc || matchesVariant;
+    });
   }
 
   // Filter by Brand
