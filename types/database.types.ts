@@ -10,7 +10,7 @@ export type UserRole = 'customer' | 'staff' | 'manager' | 'admin';
 export type DeviceCondition = 'new' | 'refurbished' | 'pre-owned';
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 export type PaymentStatus = 'unpaid' | 'paid' | 'refunded' | 'failed';
-export type PaymentMethod = 'stripe' | 'manual' | 'store_pickup';
+export type PaymentMethod = 'stripe' | 'manual' | 'bank_transfer' | 'store_pickup';
 export type FulfillmentType = 'home_delivery' | 'store_pickup';
 
 type Timestamps = {
