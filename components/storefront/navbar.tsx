@@ -2,12 +2,38 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, ShoppingBag, Smartphone, X } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
 
 export function Navbar() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const { totalCount, setIsOpen } = useCart();
+
+  const activeBrand = searchParams.get('brand')?.toLowerCase();
+  const activeCondition = searchParams.get('condition')?.toLowerCase();
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      router.push(`/phones?q=${encodeURIComponent(searchTerm.trim())}`);
+      setMobileSearchOpen(false);
+    } else {
+      router.push('/phones');
+    }
+  };
+
+  const navTags = [
+    { label: 'All Devices', href: '/phones', isActive: !activeBrand && !activeCondition && !searchParams.get('q') },
+    { label: 'Apple', href: '/phones?brand=Apple', isActive: activeBrand === 'apple' },
+    { label: 'Samsung', href: '/phones?brand=Samsung', isActive: activeBrand === 'samsung' },
+    { label: 'Google', href: '/phones?brand=Google', isActive: activeBrand === 'google' },
+    { label: 'Refurbished', href: '/phones?condition=refurbished', isActive: activeCondition === 'refurbished' },
+    { label: 'Pre-Owned', href: '/phones?condition=pre-owned', isActive: activeCondition === 'pre-owned' },
+  ];
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md">
@@ -26,16 +52,19 @@ export function Navbar() {
           </div>
         </Link>
 
+        {/* Desktop Search Bar */}
         <div className="hidden md:flex flex-1 max-w-md mx-8">
-          <div className="relative w-full">
+          <form onSubmit={handleSearchSubmit} className="relative w-full">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="search"
               placeholder="Search flagship models, storage, or brands..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               aria-label="Search devices"
               className="w-full rounded-full border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-500/20"
             />
-          </div>
+          </form>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
@@ -65,38 +94,42 @@ export function Navbar() {
         </div>
       </div>
 
+      {/* Mobile Search Overlay */}
       {mobileSearchOpen && (
         <div className="border-t border-slate-200 bg-white p-3 md:hidden">
-          <div className="relative w-full">
+          <form onSubmit={handleSearchSubmit} className="relative w-full">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="search"
               autoFocus
               placeholder="Search models, specs, brands..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               aria-label="Search devices"
               className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-teal-500 focus:bg-white"
             />
-          </div>
+          </form>
         </div>
       )}
 
+      {/* Explore Category Filters */}
       <div className="border-t border-slate-100 bg-slate-50/90 px-4 py-2 text-xs">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 overflow-x-auto no-scrollbar py-0.5">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-0.5">
           <span className="shrink-0 font-bold text-slate-400 uppercase tracking-wider text-[10px]">
             Explore:
           </span>
-          {['All Devices', 'Apple', 'Samsung', 'Google', 'Refurbished', 'Pre-Owned'].map((tag, idx) => (
-            <button
-              key={tag}
-              type="button"
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
-                idx === 0
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-white border border-slate-200 text-slate-700 active:bg-slate-100'
+          {navTags.map((tag) => (
+            <Link
+              key={tag.label}
+              href={tag.href}
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${
+                tag.isActive
+                  ? 'bg-slate-900 text-white shadow-2xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
               }`}
             >
-              {tag}
-            </button>
+              {tag.label}
+            </Link>
           ))}
         </div>
       </div>
