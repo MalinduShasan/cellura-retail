@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { decrementStock } from '@/lib/supabase/inventory';
 import type Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -62,22 +63,9 @@ export async function POST(req: Request) {
         if (!itemsError && orderItems && orderItems.length > 0) {
           for (const item of (orderItems as any[])) {
             if (item.variant_id) {
-              // Fetch current stock quantity
-              const { data: variant } = await (supabaseAdmin.from('product_variants') as any)
-                .select('stock_quantity')
-                .eq('id', item.variant_id)
-                .single();
-
-              if (variant) {
-                const currentStock = (variant as any).stock_quantity || 0;
-                const newStock = Math.max(0, currentStock - item.quantity);
-
-                await (supabaseAdmin.from('product_variants') as any)
-                  .update({
-                    stock_quantity: newStock,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq('id', item.variant_id);
+              const res = await decrementStock(item.variant_id, item.quantity);
+              if (!res.success) {
+                console.error(`Webhook stock decrement failed for variant ${item.variant_id}:`, res.error);
               }
             }
           }

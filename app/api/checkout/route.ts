@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
+import { decrementStock } from '@/lib/supabase/inventory';
 import type Stripe from 'stripe';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface CheckoutItemRequest {
   variantId: string;
@@ -53,6 +56,18 @@ export async function POST(request: Request) {
 
   try {
     const variantIds = items.map((i) => i.variantId);
+
+    // Validate that variant IDs are valid UUIDs to prevent Postgres type-casting crashes
+    const invalidIds = variantIds.filter((id) => !UUID_REGEX.test(id));
+    if (invalidIds.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            'One or more items in your cart is from an expired or sample catalog session. Please clear your cart and select a device from the live catalog.',
+        },
+        { status: 400 }
+      );
+    }
 
     // 1. Zero-Trust Price & Inventory Verification
     const { data, error: variantError } = await supabaseAdmin
@@ -115,16 +130,21 @@ export async function POST(request: Request) {
     });
 
     // 2. Insert Order into Supabase
+    const fulfillmentType = paymentMethod === 'store_pickup' ? 'store_pickup' : 'home_delivery';
+    const dbPaymentMethod = paymentMethod === 'bank_transfer' ? 'manual' : paymentMethod;
+
     const { data: orderData, error: orderError } = await (supabaseAdmin
       .from('orders') as any)
       .insert({
         status: 'pending',
         payment_status: 'unpaid',
-        payment_method: paymentMethod,
+        payment_method: dbPaymentMethod,
+        fulfillment_type: fulfillmentType,
         guest_email: customerEmail,
         shipping_address: shippingDetails,
         subtotal: verifiedSubtotal,
         total_amount: verifiedSubtotal,
+        notes: paymentMethod === 'bank_transfer' ? 'Customer selected Direct Bank Transfer' : null,
       })
       .select('id')
       .single();
@@ -209,7 +229,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ url: session.url, orderId });
     }
 
-    // Direct Bank Transfer or In-Store Pickup
+    // Direct Bank Transfer or In-Store Pickup: Immediately reserve/decrement inventory
+    for (const item of validatedItems) {
+      const stockResult = await decrementStock(item.variantId, item.quantity);
+      if (!stockResult.success) {
+        console.warn(`Stock decrement notice for variant ${item.variantId}:`, stockResult.error);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       orderId,
