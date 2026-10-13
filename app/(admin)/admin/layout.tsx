@@ -3,7 +3,8 @@ import {
   Package, 
   Layers, 
   Store, 
-  ExternalLink 
+  ExternalLink,
+  LayoutDashboard
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <nav className="space-y-1">
+            <Link
+              href="/admin"
+              className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
+            >
+              <LayoutDashboard className="h-4 w-4 text-slate-400" />
+              Overview
+            </Link>
+
             <Link
               href="/admin/orders"
               className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
