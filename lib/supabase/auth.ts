@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { Database } from '@/types/database.types';
 
 export type ProfileRow = Database['public']['Tables']['profiles']['Row'];
@@ -22,8 +23,7 @@ export async function getCurrentProfile(): Promise<ProfileRow | null> {
 
   if (!user) return null;
 
-  const { data, error } = await supabase
-    .from('profiles')
+  const { data, error } = await (supabaseAdmin.from('profiles') as any)
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
