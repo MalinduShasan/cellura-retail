@@ -1,23 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { MOCK_ORDERS } from '@/lib/mock-data';
 import type { TrackedOrder } from '@/types/store.types';
 import Link from 'next/link';
 
-export default function TrackOrderPage() {
-  const [orderIdInput, setOrderIdInput] = useState('');
-  const [emailInput, setEmailInput] = useState('');
+function TrackOrderContent() {
+  const searchParams = useSearchParams();
+  const queryOrderId = searchParams.get('orderId') || searchParams.get('order_id') || '';
+  const queryEmail = searchParams.get('email') || '';
+
+  const [orderIdInput, setOrderIdInput] = useState(queryOrderId);
+  const [emailInput, setEmailInput] = useState(queryEmail);
   const [isSearching, setIsSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [trackedOrder, setTrackedOrder] = useState<TrackedOrder | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cleanId = orderIdInput.trim();
-    const cleanEmail = emailInput.trim().toLowerCase();
+  const performSearch = useCallback(async (targetId: string, targetEmail: string) => {
+    const cleanId = targetId.trim();
+    const cleanEmail = targetEmail.trim().toLowerCase();
 
     if (!cleanId) {
       setErrorMessage('Please enter a valid Order ID.');
@@ -95,11 +99,26 @@ export default function TrackOrderPage() {
     }
 
     setIsSearching(false);
+  }, []);
+
+  // Trigger search automatically if orderId is in the URL
+  useEffect(() => {
+    if (queryOrderId) {
+      setOrderIdInput(queryOrderId);
+      if (queryEmail) setEmailInput(queryEmail);
+      performSearch(queryOrderId, queryEmail);
+    }
+  }, [queryOrderId, queryEmail, performSearch]);
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    performSearch(orderIdInput, emailInput);
   };
 
   const handleQuickSample = (sampleId: string) => {
     setOrderIdInput(sampleId);
     setEmailInput('customer@cellura.com');
+    performSearch(sampleId, 'customer@cellura.com');
   };
 
   // Stepper milestones helper
@@ -369,5 +388,19 @@ export default function TrackOrderPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function TrackOrderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[60vh] flex items-center justify-center text-sm font-semibold text-slate-500">
+          Loading order tracking...
+        </div>
+      }
+    >
+      <TrackOrderContent />
+    </Suspense>
   );
 }

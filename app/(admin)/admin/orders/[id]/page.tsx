@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { requireStaffOrAdmin } from '@/lib/supabase/auth';
 import { 
   ArrowLeft, 
   MapPin, 
@@ -17,6 +18,8 @@ export const dynamic = 'force-dynamic';
 
 async function updateOrderStatus(formData: FormData) {
   'use server';
+
+  await requireStaffOrAdmin();
 
   const orderId = formData.get('orderId') as string;
   const status = formData.get('status') as string;
