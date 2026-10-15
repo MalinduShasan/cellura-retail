@@ -93,29 +93,81 @@ function writeLocalCoupons(coupons: Coupon[]): void {
  * Fetch all coupons (queries Supabase first, falls back to local storage).
  */
 export async function getAllCoupons(): Promise<Coupon[]> {
+  const localCoupons = readLocalCoupons();
+
   try {
     const { data, error } = await (supabaseAdmin.from('coupons') as any)
       .select('*')
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(data)) {
-      return data.map((c: any) => ({
-        id: c.id,
-        code: c.code,
-        discountType: c.discount_type,
-        discountValue: Number(c.discount_value),
-        minSpend: c.min_spend ? Number(c.min_spend) : 0,
-        description: c.description || '',
-        isActive: c.is_active,
-        expiresAt: c.expires_at || undefined,
-        createdAt: c.created_at,
-      }));
+      if (data.length > 0) {
+        const dbCoupons: Coupon[] = data.map((c: any) => ({
+          id: c.id,
+          code: c.code,
+          discountType: c.discount_type,
+          discountValue: Number(c.discount_value),
+          minSpend: c.min_spend ? Number(c.min_spend) : 0,
+          description: c.description || '',
+          isActive: c.is_active,
+          expiresAt: c.expires_at || undefined,
+          createdAt: c.created_at,
+        }));
+
+        // Merge any local coupons not yet present in Supabase
+        const dbCodes = new Set(dbCoupons.map((c) => c.code.toUpperCase()));
+        const missingFromDb = localCoupons.filter((c) => !dbCodes.has(c.code.toUpperCase()));
+
+        if (missingFromDb.length > 0) {
+          // Asynchronously sync missing coupons to Supabase
+          Promise.resolve().then(async () => {
+            for (const item of missingFromDb) {
+              try {
+                await (supabaseAdmin.from('coupons') as any).upsert({
+                  id: item.id,
+                  code: item.code.toUpperCase(),
+                  discount_type: item.discountType,
+                  discount_value: item.discountValue,
+                  min_spend: item.minSpend || 0,
+                  description: item.description,
+                  is_active: item.isActive,
+                });
+              } catch {
+                // Ignore seed errors
+              }
+            }
+          });
+        }
+
+        return [...dbCoupons, ...missingFromDb];
+      } else {
+        // Table exists in DB but has 0 records -> Seed it from local store
+        Promise.resolve().then(async () => {
+          for (const item of localCoupons) {
+            try {
+              await (supabaseAdmin.from('coupons') as any).upsert({
+                id: item.id,
+                code: item.code.toUpperCase(),
+                discount_type: item.discountType,
+                discount_value: item.discountValue,
+                min_spend: item.minSpend || 0,
+                description: item.description,
+                is_active: item.isActive,
+              });
+            } catch {
+              // Ignore seed errors
+            }
+          }
+        });
+
+        return localCoupons;
+      }
     }
   } catch {
     // Fall through to local fallback
   }
 
-  return readLocalCoupons();
+  return localCoupons;
 }
 
 /**
@@ -143,8 +195,8 @@ export async function createCoupon(couponData: {
   };
 
   try {
-    const { data, error } = await (supabaseAdmin.from('coupons') as any)
-      .insert({
+    await (supabaseAdmin.from('coupons') as any)
+      .upsert({
         id: newCoupon.id,
         code: newCoupon.code,
         discount_type: newCoupon.discountType,
@@ -152,28 +204,13 @@ export async function createCoupon(couponData: {
         min_spend: newCoupon.minSpend,
         description: newCoupon.description,
         is_active: newCoupon.isActive,
-      })
-      .select('*')
-      .single();
-
-    if (!error && data) {
-      return {
-        id: data.id,
-        code: data.code,
-        discountType: data.discount_type,
-        discountValue: Number(data.discount_value),
-        minSpend: Number(data.min_spend || 0),
-        description: data.description || '',
-        isActive: data.is_active,
-        createdAt: data.created_at,
-      };
-    }
+      });
   } catch {
     // Fall back to local file
   }
 
   const existing = readLocalCoupons();
-  const filtered = existing.filter((c) => c.code !== normalizedCode);
+  const filtered = existing.filter((c) => c.code.toUpperCase() !== normalizedCode);
   const updated = [newCoupon, ...filtered];
   writeLocalCoupons(updated);
   return newCoupon;
