@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { decrementStock } from '@/lib/supabase/inventory';
 import { sendOrderConfirmationEmail } from '@/lib/email';
+import { validateCoupon } from '@/lib/coupons';
 import type Stripe from 'stripe';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -25,6 +26,7 @@ interface CheckoutRequest {
     country: string;
   };
   paymentMethod: 'stripe' | 'bank_transfer' | 'store_pickup';
+  couponCode?: string;
 }
 
 interface DbVariantRow {
@@ -130,9 +132,29 @@ export async function POST(request: Request) {
       };
     });
 
-    // 2. Insert Order into Supabase
+    // 2. Validate Coupon & Discount (if provided)
+    let discountAmount = 0;
+    let appliedCouponCode: string | null = null;
+
+    if (body.couponCode) {
+      const couponCheck = await validateCoupon(body.couponCode, verifiedSubtotal);
+      if (couponCheck.valid) {
+        discountAmount = couponCheck.discountAmount;
+        appliedCouponCode = couponCheck.code || null;
+      }
+    }
+
+    const finalTotal = Math.max(0, Math.round((verifiedSubtotal - discountAmount) * 100) / 100);
+
     const fulfillmentType = paymentMethod === 'store_pickup' ? 'store_pickup' : 'home_delivery';
     const dbPaymentMethod = paymentMethod === 'bank_transfer' ? 'manual' : paymentMethod;
+
+    const orderNotes = [
+      appliedCouponCode ? `Coupon applied: ${appliedCouponCode} (-$${discountAmount.toFixed(2)})` : null,
+      paymentMethod === 'bank_transfer' ? 'Customer selected Direct Bank Transfer' : null,
+    ]
+      .filter(Boolean)
+      .join(' | ') || null;
 
     const { data: orderData, error: orderError } = await (supabaseAdmin
       .from('orders') as any)
@@ -142,10 +164,14 @@ export async function POST(request: Request) {
         payment_method: dbPaymentMethod,
         fulfillment_type: fulfillmentType,
         guest_email: customerEmail,
-        shipping_address: shippingDetails,
+        shipping_address: {
+          ...shippingDetails,
+          couponCode: appliedCouponCode,
+          discountAmount,
+        },
         subtotal: verifiedSubtotal,
-        total_amount: verifiedSubtotal,
-        notes: paymentMethod === 'bank_transfer' ? 'Customer selected Direct Bank Transfer' : null,
+        total_amount: finalTotal,
+        notes: orderNotes,
       })
       .select('id')
       .single();
@@ -214,16 +240,34 @@ export async function POST(request: Request) {
         })
       );
 
+      let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined = undefined;
+      if (discountAmount > 0) {
+        try {
+          const stripeCoupon = await stripe.coupons.create({
+            amount_off: Math.round(discountAmount * 100),
+            currency: 'usd',
+            duration: 'once',
+            name: `Promo: ${appliedCouponCode}`,
+          });
+          discounts = [{ coupon: stripeCoupon.id }];
+        } catch (couponErr) {
+          console.warn('Could not create Stripe coupon, proceeding without Stripe discount:', couponErr);
+        }
+      }
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         customer_email: customerEmail,
         line_items: lineItems,
+        discounts,
         mode: 'payment',
         success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}&orderId=${orderId}&paymentMethod=stripe`,
         cancel_url: `${siteUrl}/checkout`,
         metadata: {
           orderId,
           customerEmail,
+          couponCode: appliedCouponCode || '',
+          discountAmount: discountAmount.toString(),
         },
       });
 
@@ -250,7 +294,7 @@ export async function POST(request: Request) {
         unitPrice: i.unitPrice,
         totalPrice: i.totalPrice,
       })),
-      totalAmount: verifiedSubtotal,
+      totalAmount: finalTotal,
       paymentMethod,
       fulfillmentType,
     }).catch((e) => console.error('Error dispatching confirmation email:', e));
@@ -259,6 +303,8 @@ export async function POST(request: Request) {
       success: true,
       orderId,
       paymentMethod,
+      discountAmount,
+      totalAmount: finalTotal,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Order processing failed';
