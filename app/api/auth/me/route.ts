@@ -18,14 +18,20 @@ export async function GET() {
 
     // Query profile with supabaseAdmin to bypass RLS recursion
     const { data: profile } = await (supabaseAdmin.from('profiles') as any)
-      .select('id, email, full_name, role')
+      .select('id, email, full_name, phone, role, shipping_address')
       .eq('id', user.id)
       .maybeSingle();
+
+    const avatarUrl =
+      user.user_metadata?.avatar_url ||
+      (profile as any)?.shipping_address?._avatar_url ||
+      null;
 
     return NextResponse.json({
       user,
       role: (profile as any)?.role || 'customer',
-      profile: profile || null,
+      profile: profile ? { ...profile, avatar_url: avatarUrl } : null,
+      avatarUrl,
     });
   } catch {
     return NextResponse.json({ user: null, role: null, profile: null });
