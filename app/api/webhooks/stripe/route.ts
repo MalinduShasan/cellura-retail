@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decrementStock } from '@/lib/supabase/inventory';
+import { sendOrderConfirmationEmail } from '@/lib/email';
 import type Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -55,9 +56,9 @@ export async function POST(req: Request) {
           console.error(`Failed to update order ${orderId} status:`, updateOrderError);
         }
 
-        // Fetch order items to decrement inventory
+        // Fetch order items to decrement inventory and prepare confirmation email
         const { data: orderItems, error: itemsError } = await (supabaseAdmin.from('order_items') as any)
-          .select('variant_id, quantity')
+          .select('variant_id, product_name, variant_details, quantity, unit_price, total_price')
           .eq('order_id', orderId);
 
         if (!itemsError && orderItems && orderItems.length > 0) {
@@ -68,6 +69,23 @@ export async function POST(req: Request) {
                 console.error(`Webhook stock decrement failed for variant ${item.variant_id}:`, res.error);
               }
             }
+          }
+
+          const customerEmail = session.customer_email || session.metadata?.customerEmail;
+          if (customerEmail) {
+            sendOrderConfirmationEmail({
+              orderId,
+              customerEmail,
+              items: (orderItems as any[]).map((i) => ({
+                productName: i.product_name,
+                variantDetails: i.variant_details,
+                quantity: i.quantity,
+                unitPrice: Number(i.unit_price),
+                totalPrice: Number(i.total_price),
+              })),
+              totalAmount: (orderItems as any[]).reduce((sum, i) => sum + Number(i.total_price || 0), 0),
+              paymentMethod: 'stripe',
+            }).catch((err) => console.error('Failed to send Stripe confirmation email:', err));
           }
         }
       }

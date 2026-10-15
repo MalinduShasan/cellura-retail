@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { decrementStock } from '@/lib/supabase/inventory';
+import { sendOrderConfirmationEmail } from '@/lib/email';
 import type Stripe from 'stripe';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -236,6 +237,23 @@ export async function POST(request: Request) {
         console.warn(`Stock decrement notice for variant ${item.variantId}:`, stockResult.error);
       }
     }
+
+    // Trigger transactional order confirmation email
+    sendOrderConfirmationEmail({
+      orderId,
+      customerEmail,
+      customerName: shippingDetails?.fullName,
+      items: validatedItems.map((i) => ({
+        productName: i.productName,
+        variantDetails: i.variantDetails,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        totalPrice: i.totalPrice,
+      })),
+      totalAmount: verifiedSubtotal,
+      paymentMethod,
+      fulfillmentType,
+    }).catch((e) => console.error('Error dispatching confirmation email:', e));
 
     return NextResponse.json({
       success: true,
