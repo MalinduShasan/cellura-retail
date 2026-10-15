@@ -4,6 +4,7 @@ import { stripe } from '@/lib/stripe';
 import { decrementStock } from '@/lib/supabase/inventory';
 import { sendOrderConfirmationEmail } from '@/lib/email';
 import { validateCoupon } from '@/lib/coupons';
+import { getCurrentUser } from '@/lib/supabase/auth';
 import type Stripe from 'stripe';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,6 +28,7 @@ interface CheckoutRequest {
   };
   paymentMethod: 'stripe' | 'bank_transfer' | 'store_pickup';
   couponCode?: string;
+  saveAsDefault?: boolean;
 }
 
 interface DbVariantRow {
@@ -146,8 +148,10 @@ export async function POST(request: Request) {
 
     const finalTotal = Math.max(0, Math.round((verifiedSubtotal - discountAmount) * 100) / 100);
 
+    const user = await getCurrentUser();
+
     const fulfillmentType = paymentMethod === 'store_pickup' ? 'store_pickup' : 'home_delivery';
-    const dbPaymentMethod = paymentMethod === 'bank_transfer' ? 'manual' : paymentMethod;
+    const dbPaymentMethod = paymentMethod;
 
     const orderNotes = [
       appliedCouponCode ? `Coupon applied: ${appliedCouponCode} (-$${discountAmount.toFixed(2)})` : null,
@@ -159,11 +163,12 @@ export async function POST(request: Request) {
     const { data: orderData, error: orderError } = await (supabaseAdmin
       .from('orders') as any)
       .insert({
+        user_id: user?.id || null,
         status: 'pending',
         payment_status: 'unpaid',
         payment_method: dbPaymentMethod,
         fulfillment_type: fulfillmentType,
-        guest_email: customerEmail,
+        guest_email: user?.email || customerEmail,
         shipping_address: {
           ...shippingDetails,
           couponCode: appliedCouponCode,
@@ -185,6 +190,21 @@ export async function POST(request: Request) {
     }
 
     const orderId = orderData.id;
+
+    // Optional: Update default address in profile if requested by logged-in customer
+    if (body.saveAsDefault && user?.id) {
+      try {
+        await (supabaseAdmin.from('profiles') as any)
+          .update({
+            phone: shippingDetails.phone || null,
+            shipping_address: shippingDetails,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
+      } catch (profileErr) {
+        console.warn('Could not update default profile address:', profileErr);
+      }
+    }
 
     // 3. Insert Order Items (Exact match with Supabase schema)
     const itemsPayload = validatedItems.map((item) => ({
