@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/cart-context';
+import { useWishlist } from '@/context/wishlist-context';
+import { Heart } from 'lucide-react';
 import type { ProductWithVariants, ProductVariant } from '@/types/store.types';
 import Link from 'next/link';
 
@@ -13,6 +15,8 @@ interface ProductViewProps {
 export function ProductView({ product }: ProductViewProps) {
   const router = useRouter();
   const { addItem } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const isSaved = isInWishlist(product.id);
 
   const initialVariant = product.variants[0] || {
     id: '',
@@ -474,6 +478,27 @@ export function ProductView({ product }: ProductViewProps) {
               className="min-h-[48px] flex-1 flex items-center justify-center rounded-2xl bg-slate-900 px-6 text-sm font-bold text-white shadow-md transition hover:bg-slate-800 active:scale-98 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               Buy Now Express
+            </button>
+
+            <button
+              type="button"
+              onClick={() => toggleWishlist({
+                productId: product.id,
+                name: product.name,
+                brand: product.brand,
+                slug: product.slug,
+                price: activeVariant.price,
+                image: selectedImage,
+                storage: activeVariant.storage,
+              })}
+              title={isSaved ? 'Remove from wishlist' : 'Save to wishlist'}
+              className={`min-h-[48px] px-4 rounded-2xl border flex items-center justify-center transition ${
+                isSaved
+                  ? 'border-rose-200 bg-rose-50 text-rose-600'
+                  : 'border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-slate-300'
+              }`}
+            >
+              <Heart className={`h-5 w-5 ${isSaved ? 'fill-rose-600 text-rose-600' : ''}`} />
             </button>
           </div>
 

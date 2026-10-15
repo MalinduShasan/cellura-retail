@@ -4,7 +4,8 @@ import {
   Layers, 
   Store, 
   ExternalLink,
-  LayoutDashboard
+  LayoutDashboard,
+  Tag
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <Layers className="h-4 w-4 text-slate-400" />
               Stock & Inventory
+            </Link>
+
+            <Link
+              href="/admin/coupons"
+              className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
+            >
+              <Tag className="h-4 w-4 text-slate-400" />
+              Coupons & Promos
             </Link>
           </nav>
         </div>
