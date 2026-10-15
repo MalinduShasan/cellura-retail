@@ -228,6 +228,15 @@ export function Navbar() {
                 )}
 
                 <Link
+                  href="/account"
+                  onClick={() => setProfileDropdownOpen(false)}
+                  className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
+                >
+                  <User className="h-4 w-4 text-teal-600" />
+                  My Orders & Account
+                </Link>
+
+                <Link
                   href="/track-order"
                   onClick={() => setProfileDropdownOpen(false)}
                   className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"

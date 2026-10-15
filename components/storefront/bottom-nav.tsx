@@ -51,8 +51,10 @@ export function BottomNav() {
         </button>
 
         <Link
-          href="/login"
-          className="flex flex-col items-center justify-center py-1 text-slate-500"
+          href="/account"
+          className={`flex flex-col items-center justify-center py-1 transition ${
+            pathname === '/account' ? 'text-teal-600' : 'text-slate-500'
+          }`}
         >
           <User className="h-5 w-5" />
           <span className="mt-1 text-[11px] font-medium leading-none">Account</span>
