@@ -15,11 +15,13 @@ import {
   Package, 
   ChevronDown,
   Heart,
-  Tag
+  Tag,
+  Loader2
 } from 'lucide-react';
 import { useCart } from '@/context/cart-context';
 import { useWishlist } from '@/context/wishlist-context';
 import { createClient } from '@/lib/supabase/client';
+import { signOutAndRedirect } from '@/lib/auth-client';
 
 export function Navbar() {
   const router = useRouter();
@@ -32,7 +34,9 @@ export function Navbar() {
   // Auth & Profile State
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const supabase = createClient();
@@ -45,6 +49,7 @@ export function Navbar() {
           const data = await res.json();
           setCurrentUser(data.user);
           setUserRole(data.role);
+          setAvatarUrl(data.avatarUrl || data.user?.user_metadata?.avatar_url || null);
         }
       } catch {
         // Ignore fetch errors
@@ -76,11 +81,9 @@ export function Navbar() {
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setCurrentUser(null);
-    setUserRole(null);
+    setIsSigningOut(true);
     setProfileDropdownOpen(false);
-    router.refresh();
+    await signOutAndRedirect();
   };
 
   const activeBrand = searchParams.get('brand')?.toLowerCase();
@@ -169,11 +172,20 @@ export function Navbar() {
                 type="button"
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                 aria-label="User Account Menu"
-                className="flex items-center gap-1.5 h-10 px-2.5 rounded-full border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition"
+                className="flex items-center gap-1.5 h-10 px-2 rounded-full border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition"
               >
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-600 text-white text-[11px] font-bold uppercase">
-                  {currentUser.email ? currentUser.email[0] : 'U'}
-                </div>
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarUrl}
+                    alt="User Avatar"
+                    className="h-6 w-6 rounded-full object-cover border border-slate-200"
+                  />
+                ) : (
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-600 text-white text-[11px] font-bold uppercase">
+                    {currentUser.email ? currentUser.email[0] : 'U'}
+                  </div>
+                )}
                 <ChevronDown className="h-3 w-3 text-slate-400" />
               </button>
             ) : (
@@ -189,16 +201,30 @@ export function Navbar() {
             {/* Profile Dropdown Menu */}
             {profileDropdownOpen && currentUser && (
               <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg z-50 animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-3 py-2 border-b border-slate-100 mb-1">
-                  <div className="text-[11px] text-slate-400 font-medium">Signed in as</div>
-                  <div className="text-xs font-bold text-slate-900 truncate">
-                    {currentUser.email}
-                  </div>
-                  {userRole && (
-                    <span className="inline-block mt-1 rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-700 border border-teal-200">
-                      {userRole}
-                    </span>
+                <div className="px-3 py-2 border-b border-slate-100 mb-1 flex items-center gap-2.5">
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatarUrl}
+                      alt="Avatar"
+                      className="h-8 w-8 rounded-full object-cover shrink-0 border border-slate-200"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-white text-xs font-bold shrink-0">
+                      {currentUser.email ? currentUser.email[0].toUpperCase() : 'U'}
+                    </div>
                   )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] text-slate-400 font-medium leading-none">Signed in as</div>
+                    <div className="text-xs font-bold text-slate-900 truncate mt-0.5">
+                      {currentUser.email}
+                    </div>
+                    {userRole && (
+                      <span className="inline-block mt-1 rounded-md bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-teal-700 border border-teal-200">
+                        {userRole}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {isStaffOrAdmin && (
@@ -259,11 +285,21 @@ export function Navbar() {
 
                 <button
                   type="button"
+                  disabled={isSigningOut}
                   onClick={handleSignOut}
-                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition text-left"
+                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50 transition text-left"
                 >
-                  <LogOut className="h-4 w-4 text-rose-500" />
-                  Sign Out
+                  {isSigningOut ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                      Signing out...
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="h-4 w-4 text-rose-500" />
+                      Sign Out
+                    </>
+                  )}
                 </button>
               </div>
             )}

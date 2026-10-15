@@ -1,5 +1,15 @@
 [
   {
+    "id": "eb91857a-6cc4-4f11-9e7a-385f17a932a9",
+    "code": "MS640",
+    "discountType": "percentage",
+    "discountValue": 9,
+    "minSpend": 90,
+    "description": "9% promotional discount",
+    "isActive": true,
+    "createdAt": "2026-10-15T04:02:08.739Z"
+  },
+  {
     "id": "c1a2b3c4-1111-4000-8000-000000000001",
     "code": "CELLURA10",
     "discountType": "percentage",

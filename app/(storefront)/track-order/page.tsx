@@ -33,72 +33,27 @@ function TrackOrderContent() {
     setSearched(true);
 
     try {
-      const supabase = createClient();
+      const res = await fetch(
+        `/api/orders/track?orderId=${encodeURIComponent(cleanId)}&email=${encodeURIComponent(cleanEmail)}`
+      );
+      const data = await res.json();
 
-      // Attempt Supabase query
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          status,
-          payment_status,
-          created_at,
-          tracking_number,
-          subtotal,
-          total_amount,
-          shipping_address,
-          order_items (*)
-        `)
-        .eq('id', cleanId)
-        .maybeSingle();
-
-      const dbOrder = data as any;
-
-      if (!error && dbOrder) {
-        const mappedOrder: TrackedOrder = {
-          id: dbOrder.id,
-          email: cleanEmail || 'customer@cellura.com',
-          status: dbOrder.status as any,
-          payment_status: dbOrder.payment_status as any,
-          created_at: dbOrder.created_at,
-          tracking_number: dbOrder.tracking_number || undefined,
-          carrier: 'FedEx Express 2-Day',
-          subtotal: Number(dbOrder.subtotal),
-          total_amount: Number(dbOrder.total_amount),
-          shipping_address: dbOrder.shipping_address as any,
-          items: (dbOrder.order_items || []).map((item: any) => ({
-            name: item.product_name,
-            variant: item.variant_details?.storage
-              ? `${item.variant_details.storage} · ${item.variant_details.color}`
-              : 'Smartphone Unit',
-            quantity: item.quantity,
-            price: Number(item.unit_price),
-            image: item.variant_details?.image || 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=800&q=80',
-          })),
-        };
-        setTrackedOrder(mappedOrder);
+      if (res.ok && data.order) {
+        setTrackedOrder(data.order);
         setIsSearching(false);
         return;
       }
-    } catch {
-      // Fallback to mock data lookup
-    }
 
-    // Fallback to mock orders dictionary or fuzzy match
-    const mockMatch =
-      MOCK_ORDERS[cleanId] ||
-      Object.values(MOCK_ORDERS).find(
-        (o) => o.id.toLowerCase() === cleanId.toLowerCase()
-      );
-
-    if (mockMatch) {
-      setTrackedOrder(mockMatch);
-    } else {
       setTrackedOrder(null);
-      setErrorMessage('No order found with the provided ID. Please verify your Order ID.');
+      setErrorMessage(
+        data.error || 'No order found with the provided ID. Please verify your Order ID.'
+      );
+    } catch {
+      setTrackedOrder(null);
+      setErrorMessage('Failed to connect to tracking services. Please try again.');
+    } finally {
+      setIsSearching(false);
     }
-
-    setIsSearching(false);
   }, []);
 
   // Trigger search automatically if orderId is in the URL

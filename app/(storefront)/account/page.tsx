@@ -20,6 +20,8 @@ import {
   Smartphone,
   FileText
 } from 'lucide-react';
+import { AccountSignOutButton } from '@/components/storefront/account-sign-out-button';
+import { CustomerProfileEditor } from '@/components/storefront/customer-profile-editor';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,10 +135,17 @@ export default async function CustomerAccountPage() {
     );
   };
 
+  const avatarUrl =
+    user.user_metadata?.avatar_url ||
+    profile?.shipping_address?._avatar_url ||
+    null;
+
+  const isStaffOrAdmin = profile?.role && ['staff', 'manager', 'admin'].includes(profile.role);
+
   return (
-    <main className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <main className="min-h-screen bg-slate-50 py-8 sm:py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       {/* Header Breadcrumbs */}
-      <div className="mb-8">
+      <div className="mb-6 sm:mb-8">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-2">
           <Link href="/" className="hover:text-teal-600 transition">
             Home
@@ -153,7 +162,16 @@ export default async function CustomerAccountPage() {
               Manage your orders, shipment tracking, hardware warranty coverage, and account profile.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            {isStaffOrAdmin && (
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:border-slate-300 hover:bg-slate-50 shadow-2xs transition"
+              >
+                <ShieldCheck className="h-4 w-4 text-teal-600" />
+                <span>Admin Portal</span>
+              </Link>
+            )}
             <Link
               href="/phones"
               className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-teal-700 transition"
@@ -168,11 +186,42 @@ export default async function CustomerAccountPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         {/* Left Column: Profile Card & Quick Stats */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
-            <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-600 text-white font-black text-lg">
-                {user.email ? user.email[0].toUpperCase() : 'U'}
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
+            <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100">
+              <div className="relative group shrink-0">
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarUrl}
+                    alt={profile?.full_name || 'Customer'}
+                    className="h-14 w-14 rounded-2xl object-cover border-2 border-white shadow-sm ring-1 ring-slate-200"
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-600 text-white font-black text-xl shadow-xs">
+                    {user.email ? user.email[0].toUpperCase() : 'U'}
+                  </div>
+                )}
+                <CustomerProfileEditor
+                  initialProfile={{
+                    id: user.id,
+                    email: user.email,
+                    full_name: profile?.full_name,
+                    phone: profile?.phone,
+                    avatar_url: avatarUrl,
+                    shipping_address: profile?.shipping_address,
+                  }}
+                  trigger={
+                    <button
+                      type="button"
+                      title="Upload or change profile picture"
+                      className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm hover:bg-teal-600 transition"
+                    >
+                      <User className="h-3 w-3" />
+                    </button>
+                  }
+                />
               </div>
+
               <div className="min-w-0 flex-1">
                 <div className="font-bold text-slate-900 text-sm truncate">
                   {profile?.full_name || 'Customer'}
@@ -202,6 +251,29 @@ export default async function CustomerAccountPage() {
                   {new Date(user.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                 </span>
               </div>
+              {profile?.shipping_address?.address && (
+                <div className="pt-2 border-t border-slate-100 text-[11px]">
+                  <span className="text-slate-400 block mb-0.5">Default Shipping Address:</span>
+                  <span className="text-slate-700 font-medium line-clamp-2">
+                    {profile.shipping_address.address}
+                    {profile.shipping_address.apartment ? `, ${profile.shipping_address.apartment}` : ''}, {profile.shipping_address.city}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 mt-4 space-y-2">
+              <CustomerProfileEditor
+                initialProfile={{
+                  id: user.id,
+                  email: user.email,
+                  full_name: profile?.full_name,
+                  phone: profile?.phone,
+                  avatar_url: avatarUrl,
+                  shipping_address: profile?.shipping_address,
+                }}
+              />
+              <AccountSignOutButton className="w-full" variant="outline" />
             </div>
           </div>
 

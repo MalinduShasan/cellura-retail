@@ -3,13 +3,13 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Smartphone, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Smartphone, Lock, Mail, ArrowRight, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') || '/admin/orders';
+  const explicitNext = searchParams.get('next');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +25,7 @@ function LoginForm() {
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
@@ -33,8 +33,26 @@ function LoginForm() {
         throw authError;
       }
 
-      router.push(next);
-      router.refresh();
+      if (explicitNext) {
+        window.location.href = explicitNext;
+        return;
+      }
+
+      // Check role dynamically
+      try {
+        const meRes = await fetch('/api/auth/me');
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.role && ['staff', 'manager', 'admin'].includes(meData.role)) {
+            window.location.href = '/admin/orders';
+            return;
+          }
+        }
+      } catch {
+        // Fallback to customer account
+      }
+
+      window.location.href = '/account';
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Invalid credentials';
       setError(message);
@@ -59,6 +77,13 @@ function LoginForm() {
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4">
         <div className="bg-white py-8 px-6 shadow-xs border border-slate-200 rounded-3xl sm:px-10">
+          {searchParams.get('message') === 'signed_out' && !error && (
+            <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-xs text-teal-800 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-600" />
+              <span>You have been successfully signed out.</span>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />

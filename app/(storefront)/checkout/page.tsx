@@ -16,8 +16,24 @@ import {
   CheckCircle2,
   Tag,
   Sparkles,
-  X
+  X,
+  MapPin,
+  Plus,
+  Edit2,
+  RotateCcw
 } from 'lucide-react';
+
+interface SavedAddress {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  address: string;
+  apartment?: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  email?: string;
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -39,6 +55,11 @@ export default function CheckoutPage() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
+  // Address engine & Default Address State
+  const [savedAddress, setSavedAddress] = useState<SavedAddress | null>(null);
+  const [addressMode, setAddressMode] = useState<'default' | 'new' | 'editing'>('new');
+  const [saveAsDefault, setSaveAsDefault] = useState(true);
+
   // Form State
   const [formData, setFormData] = useState({
     email: '',
@@ -54,6 +75,78 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
+
+    async function loadAddressData() {
+      let candidate: SavedAddress | null = null;
+
+      // 1. Check local storage for quick prefill
+      try {
+        const local = localStorage.getItem('cellura_default_address');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (parsed && parsed.address && parsed.city) {
+            candidate = parsed;
+          }
+        }
+      } catch {
+        // Ignore JSON error
+      }
+
+      // 2. Fetch authenticated profile to check if cloud-stored address exists
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile?.shipping_address && typeof data.profile.shipping_address === 'object') {
+            const cloudAddr = data.profile.shipping_address;
+            candidate = {
+              firstName: cloudAddr.firstName || data.profile.full_name?.split(' ')[0] || candidate?.firstName || '',
+              lastName: cloudAddr.lastName || data.profile.full_name?.split(' ').slice(1).join(' ') || candidate?.lastName || '',
+              phone: cloudAddr.phone || data.profile.phone || candidate?.phone || '',
+              address: cloudAddr.address || candidate?.address || '',
+              apartment: cloudAddr.apartment || candidate?.apartment || '',
+              city: cloudAddr.city || candidate?.city || '',
+              postalCode: cloudAddr.postalCode || candidate?.postalCode || '',
+              country: cloudAddr.country || candidate?.country || 'United States',
+              email: data.user?.email || candidate?.email || '',
+            };
+          } else if (data.user?.email) {
+            setFormData((prev) => ({
+              ...prev,
+              email: data.user.email,
+              phone: data.profile?.phone || prev.phone,
+              firstName: data.profile?.full_name?.split(' ')[0] || prev.firstName,
+              lastName: data.profile?.full_name?.split(' ').slice(1).join(' ') || prev.lastName,
+            }));
+          }
+        }
+      } catch {
+        // Ignore network error
+      }
+
+      if (candidate && candidate.address && candidate.city) {
+        setSavedAddress(candidate);
+        setFormData((prev) => ({
+          ...prev,
+          email: candidate?.email || prev.email,
+          phone: candidate?.phone || prev.phone,
+          firstName: candidate?.firstName || prev.firstName,
+          lastName: candidate?.lastName || prev.lastName,
+          address: candidate?.address || prev.address,
+          apartment: candidate?.apartment || '',
+          city: candidate?.city || prev.city,
+          postalCode: candidate?.postalCode || prev.postalCode,
+          country: candidate?.country || prev.country || 'United States',
+        }));
+        setAddressMode('default');
+        setSaveAsDefault(true);
+      } else {
+        setAddressMode('new');
+        setSaveAsDefault(true);
+      }
+    }
+
+    loadAddressData();
   }, []);
 
   if (!mounted) {
@@ -135,6 +228,43 @@ export default function CheckoutPage() {
     setCouponError(null);
   };
 
+  const handleSwitchToNewAddress = () => {
+    setAddressMode('new');
+    setFormData((prev) => ({
+      ...prev,
+      firstName: '',
+      lastName: '',
+      address: '',
+      apartment: '',
+      city: '',
+      postalCode: '',
+    }));
+    setSaveAsDefault(false);
+  };
+
+  const handleSwitchBackToDefault = () => {
+    if (savedAddress) {
+      setFormData((prev) => ({
+        ...prev,
+        firstName: savedAddress.firstName || prev.firstName,
+        lastName: savedAddress.lastName || prev.lastName,
+        phone: savedAddress.phone || prev.phone,
+        address: savedAddress.address || prev.address,
+        apartment: savedAddress.apartment || '',
+        city: savedAddress.city || prev.city,
+        postalCode: savedAddress.postalCode || prev.postalCode,
+        country: savedAddress.country || prev.country || 'United States',
+      }));
+      setAddressMode('default');
+      setSaveAsDefault(true);
+    }
+  };
+
+  const handleEditDefaultAddress = () => {
+    setAddressMode('editing');
+    setSaveAsDefault(true);
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -159,6 +289,7 @@ export default function CheckoutPage() {
           },
           paymentMethod,
           couponCode: appliedCoupon?.code,
+          saveAsDefault,
         }),
       });
 
@@ -166,6 +297,26 @@ export default function CheckoutPage() {
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to process order. Please try again.');
+      }
+
+      // Persist as default address locally for immediate prefill on next visit
+      if (saveAsDefault || addressMode === 'default') {
+        try {
+          const toSave: SavedAddress = {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phone: formData.phone,
+            address: formData.address,
+            apartment: formData.apartment,
+            city: formData.city,
+            postalCode: formData.postalCode,
+            country: formData.country,
+            email: formData.email,
+          };
+          localStorage.setItem('cellura_default_address', JSON.stringify(toSave));
+        } catch {
+          // Ignore storage errors
+        }
       }
 
       // If Stripe payment URL is returned, redirect to Stripe Checkout
@@ -176,7 +327,8 @@ export default function CheckoutPage() {
 
       // For Bank Transfer or Store Pickup, clear cart and redirect to success
       clearCart();
-		router.push(`/checkout/success?orderId=${data.orderId || 'manual'}&paymentMethod=${paymentMethod}`);    } catch (err) {
+      router.push(`/checkout/success?orderId=${data.orderId || 'manual'}&paymentMethod=${paymentMethod}`);
+    } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);
@@ -252,91 +404,209 @@ export default function CheckoutPage() {
             </div>
 
             {/* Shipping Address */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 mb-4">
-                2. Shipping Address
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    First Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    required
-                    value={formData.firstName}
-                    onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Last Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    required
-                    value={formData.lastName}
-                    onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Street Address *
-                  </label>
-                  <input
-                    type="text"
-                    name="address"
-                    required
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    placeholder="123 Retail Boulevard"
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Apartment, Suite, Unit (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="apartment"
-                    value={formData.apartment}
-                    onChange={handleInputChange}
-                    placeholder="Apt 4B"
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    City *
-                  </label>
-                  <input
-                    type="text"
-                    name="city"
-                    required
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Postal Code *
-                  </label>
-                  <input
-                    type="text"
-                    name="postalCode"
-                    required
-                    value={formData.postalCode}
-                    onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-teal-600" />
+                  2. Shipping Address
+                </h2>
+                {savedAddress && addressMode === 'default' && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-full">
+                    <CheckCircle2 className="h-3 w-3 text-teal-600" />
+                    Default Shipping Address
+                  </span>
+                )}
+                {savedAddress && addressMode !== 'default' && (
+                  <button
+                    type="button"
+                    onClick={handleSwitchBackToDefault}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 hover:text-teal-700 transition"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Use Default Address
+                  </button>
+                )}
               </div>
+
+              {/* Mode A: Default Address Card View */}
+              {savedAddress && addressMode === 'default' && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/60 via-white to-slate-50/50 p-4 sm:p-5 transition hover:border-teal-300">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                      <div className="space-y-1.5 text-xs">
+                        <div className="text-sm font-extrabold text-slate-900">
+                          {formData.firstName} {formData.lastName}
+                        </div>
+                        <div className="text-slate-700 font-medium leading-relaxed">
+                          {formData.address}
+                          {formData.apartment ? `, ${formData.apartment}` : ''}
+                        </div>
+                        <div className="text-slate-600">
+                          {formData.city}, {formData.postalCode} · {formData.country}
+                        </div>
+                        {formData.phone && (
+                          <div className="text-[11px] text-slate-500 pt-1 flex items-center gap-1 font-mono">
+                            <span>Phone:</span>
+                            <span className="font-semibold text-slate-700">{formData.phone}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleEditDefaultAddress}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
+                        >
+                          <Edit2 className="h-3.5 w-3.5 text-slate-500" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSwitchToNewAddress}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-teal-700 transition shadow-2xs"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Ship to Another Address</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Mode B: Form Input View (for New Address or Editing Default) */}
+              {(addressMode === 'new' || addressMode === 'editing' || !savedAddress) && (
+                <div className="space-y-4">
+                  {addressMode === 'new' && savedAddress && (
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-center justify-between">
+                      <span>Entering a new destination for this order.</span>
+                      <button
+                        type="button"
+                        onClick={handleSwitchBackToDefault}
+                        className="font-bold underline hover:text-amber-900 ml-2"
+                      >
+                        Cancel & use default
+                      </button>
+                    </div>
+                  )}
+
+                  {addressMode === 'editing' && (
+                    <div className="rounded-xl bg-teal-50 border border-teal-200 p-3 text-xs text-teal-800 flex items-center justify-between">
+                      <span>Modifying your default shipping address.</span>
+                      <button
+                        type="button"
+                        onClick={() => setAddressMode('default')}
+                        className="font-bold underline hover:text-teal-900 ml-2"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        First Name *
+                      </label>
+                      <input
+                        type="text"
+                        name="firstName"
+                        required
+                        value={formData.firstName}
+                        onChange={handleInputChange}
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Last Name *
+                      </label>
+                      <input
+                        type="text"
+                        name="lastName"
+                        required
+                        value={formData.lastName}
+                        onChange={handleInputChange}
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Street Address *
+                      </label>
+                      <input
+                        type="text"
+                        name="address"
+                        required
+                        value={formData.address}
+                        onChange={handleInputChange}
+                        placeholder="123 Retail Boulevard"
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Apartment, Suite, Unit (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        name="apartment"
+                        value={formData.apartment}
+                        onChange={handleInputChange}
+                        placeholder="Apt 4B"
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        City *
+                      </label>
+                      <input
+                        type="text"
+                        name="city"
+                        required
+                        value={formData.city}
+                        onChange={handleInputChange}
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Postal Code *
+                      </label>
+                      <input
+                        type="text"
+                        name="postalCode"
+                        required
+                        value={formData.postalCode}
+                        onChange={handleInputChange}
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Option to set as default address */}
+                  <div className="pt-3 border-t border-slate-100">
+                    <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={saveAsDefault}
+                        onChange={(e) => setSaveAsDefault(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-slate-800">
+                          Save as default shipping address
+                        </span>
+                        <span className="block text-[11px] text-slate-400">
+                          Automatically pre-fill this address for your future smartphone purchases.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Payment Method Selector */}
