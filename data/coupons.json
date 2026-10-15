@@ -1,0 +1,32 @@
+[
+  {
+    "id": "c1a2b3c4-1111-4000-8000-000000000001",
+    "code": "CELLURA10",
+    "discountType": "percentage",
+    "discountValue": 10,
+    "minSpend": 100,
+    "description": "10% off any smartphone order over $100",
+    "isActive": true,
+    "createdAt": "2026-10-15T00:00:00.000Z"
+  },
+  {
+    "id": "c1a2b3c4-2222-4000-8000-000000000002",
+    "code": "FLAGSHIP50",
+    "discountType": "fixed",
+    "discountValue": 50,
+    "minSpend": 500,
+    "description": "$50 discount on premium flagship devices over $500",
+    "isActive": true,
+    "createdAt": "2026-10-15T00:00:00.000Z"
+  },
+  {
+    "id": "c1a2b3c4-3333-4000-8000-000000000003",
+    "code": "WELCOME5",
+    "discountType": "percentage",
+    "discountValue": 5,
+    "minSpend": 50,
+    "description": "5% welcome discount for new smartphone customers",
+    "isActive": true,
+    "createdAt": "2026-10-15T00:00:00.000Z"
+  }
+]

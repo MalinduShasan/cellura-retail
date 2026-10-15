@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/context/cart-context';
+import { useWishlist } from '@/context/wishlist-context';
+import { Heart } from 'lucide-react';
 import type { ProductWithVariants } from '@/types/store.types';
 
 interface ProductCardProps {
@@ -12,9 +14,11 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
   const { addItem } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
   const activeVariant = product.variants[selectedVariantIndex];
   const activeImage = activeVariant.images[0] || '/placeholder-phone.svg';
   const isOutOfStock = activeVariant.stock_quantity <= 0;
+  const isSaved = isInWishlist(product.id);
 
   const conditionColors: Record<string, string> = {
     new: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -46,6 +50,32 @@ export function ProductCard({ product }: ProductCardProps) {
             </span>
           )}
         </div>
+
+        {/* Wishlist Heart Toggle */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleWishlist({
+              productId: product.id,
+              name: product.name,
+              brand: product.brand,
+              slug: product.slug,
+              price: activeVariant.price,
+              image: activeImage,
+              storage: activeVariant.storage,
+            });
+          }}
+          aria-label={isSaved ? 'Remove from wishlist' : 'Save to wishlist'}
+          className={`absolute top-3 right-3 h-8 w-8 rounded-full flex items-center justify-center transition shadow-xs z-10 ${
+            isSaved
+              ? 'bg-rose-50 text-rose-600 border border-rose-200'
+              : 'bg-white/90 text-slate-400 hover:text-rose-600 hover:bg-white backdrop-blur-xs'
+          }`}
+        >
+          <Heart className={`h-4 w-4 ${isSaved ? 'fill-rose-600' : ''}`} />
+        </button>
       </div>
 
       {/* Product Content */}
