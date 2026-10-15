@@ -133,6 +133,8 @@ function RegisterForm() {
                   <User className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
+                    name="name"
+                    autoComplete="name"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -150,6 +152,8 @@ function RegisterForm() {
                   <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <input
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -167,6 +171,8 @@ function RegisterForm() {
                   <Phone className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <input
                     type="tel"
+                    name="tel"
+                    autoComplete="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+1 (555) 000-0000"
@@ -183,6 +189,8 @@ function RegisterForm() {
                   <Lock className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <input
                     type="password"
+                    name="password"
+                    autoComplete="new-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -200,6 +208,8 @@ function RegisterForm() {
                   <Lock className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <input
                     type="password"
+                    name="confirmPassword"
+                    autoComplete="new-password"
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

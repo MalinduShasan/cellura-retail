@@ -107,8 +107,43 @@ export default async function ProductDetailPage({
     notFound();
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://cellura.lk';
+  const allImages = Array.from(new Set(product.variants.flatMap((v) => v.images)));
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.description,
+    brand: {
+      '@type': 'Brand',
+      name: product.brand,
+    },
+    image: allImages.length > 0 ? allImages : undefined,
+    offers: product.variants.map((v) => ({
+      '@type': 'Offer',
+      sku: v.sku,
+      price: v.price,
+      priceCurrency: 'LKR',
+      availability: v.stock_quantity > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      itemCondition:
+        v.condition === 'new'
+          ? 'https://schema.org/NewCondition'
+          : 'https://schema.org/RefurbishedCondition',
+      url: `${siteUrl}/phones/${product.slug}`,
+      seller: {
+        '@type': 'Organization',
+        name: 'Cellura Retail',
+      },
+    })),
+  };
+
   return (
     <main className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <ProductView product={product} />
     </main>
   );

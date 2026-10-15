@@ -13,7 +13,10 @@ import {
   ArrowLeft, 
   ShoppingBag,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Tag,
+  Sparkles,
+  X
 } from 'lucide-react';
 
 export default function CheckoutPage() {
@@ -23,6 +26,18 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'bank_transfer' | 'store_pickup'>('stripe');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Promo code engine state
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountAmount: number;
+    discountType: string;
+    discountValue: number;
+    message: string;
+  } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -78,6 +93,48 @@ export default function CheckoutPage() {
     }));
   };
 
+  const handleApplyCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponInput.trim()) return;
+    setIsApplyingCoupon(true);
+    setCouponError(null);
+
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: couponInput.trim(),
+          subtotal,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setCouponError(data.message || 'Invalid coupon code');
+        setAppliedCoupon(null);
+      } else {
+        setAppliedCoupon({
+          code: data.code,
+          discountAmount: data.discountAmount,
+          discountType: data.discountType,
+          discountValue: data.discountValue,
+          message: data.message,
+        });
+        setCouponInput('');
+      }
+    } catch {
+      setCouponError('Failed to validate promo code.');
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -101,6 +158,7 @@ export default function CheckoutPage() {
             fullName: `${formData.firstName} ${formData.lastName}`.trim(),
           },
           paymentMethod,
+          couponCode: appliedCoupon?.code,
         }),
       });
 
@@ -406,25 +464,102 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              {/* Cost Calculations */}
-              <div className="border-t border-slate-100 pt-4 mt-4 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Express Insured Shipping</span>
-                  <span className="font-semibold text-teal-600">FREE</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Estimated Tax</span>
-                  <span>$0.00</span>
-                </div>
-                <div className="flex justify-between text-base font-extrabold text-slate-900 border-t border-slate-100 pt-3">
-                  <span>Total</span>
-                  <span>${subtotal.toFixed(2)}</span>
-                </div>
+              {/* Promo Code Box */}
+              <div className="border-t border-slate-100 pt-4 mt-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5 text-teal-600" />
+                    Promo / Discount Code
+                  </span>
+                  <span className="text-[10px] text-teal-600 font-normal">
+                    Try: <strong>CELLURA10</strong>
+                  </span>
+                </label>
+
+                {!appliedCoupon ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                      placeholder="e.g. CELLURA10"
+                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs uppercase font-mono tracking-wider text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={isApplyingCoupon || !couponInput.trim()}
+                      className="rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition"
+                    >
+                      {isApplyingCoupon ? 'Verifying...' : 'Apply'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-200 p-2.5 text-xs text-emerald-800">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <span className="font-bold font-mono uppercase">{appliedCoupon.code}</span>
+                        <span className="text-[11px] text-emerald-600 block">
+                          Saved ${appliedCoupon.discountAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="text-slate-400 hover:text-rose-600 transition p-1"
+                      title="Remove promo code"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {couponError && (
+                  <p className="mt-1.5 text-[11px] text-rose-600">{couponError}</p>
+                )}
               </div>
+
+              {/* Cost Calculations */}
+              {(() => {
+                const discount = appliedCoupon?.discountAmount || 0;
+                const finalTotal = Math.max(0, subtotal - discount);
+
+                return (
+                  <div className="border-t border-slate-100 pt-4 mt-4 space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Subtotal</span>
+                      <span>${subtotal.toFixed(2)}</span>
+                    </div>
+                    {appliedCoupon && (
+                      <div className="flex justify-between text-emerald-600 font-semibold">
+                        <span>Discount ({appliedCoupon.code})</span>
+                        <span>-${appliedCoupon.discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-slate-600">
+                      <span>Express Insured Shipping</span>
+                      <span className="font-semibold text-teal-600">FREE</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Estimated Tax</span>
+                      <span>$0.00</span>
+                    </div>
+                    <div className="flex justify-between text-base font-extrabold text-slate-900 border-t border-slate-100 pt-3">
+                      <span>Total</span>
+                      <div className="text-right">
+                        <span>${finalTotal.toFixed(2)}</span>
+                        {appliedCoupon && (
+                          <span className="block text-[10px] text-slate-400 line-through font-normal">
+                            ${subtotal.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Submit Button */}
               <button
